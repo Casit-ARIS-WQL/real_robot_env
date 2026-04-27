@@ -33,6 +33,8 @@ from q_transformer.tensor_typing import (
 from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs
 
+from tqdm import tqdm
+
 from ema_pytorch import EMA
 
 # constants
@@ -706,6 +708,14 @@ class QLearner(Module):
         self.model.train()
         self.ema_model.train()
 
+        pbar = tqdm(
+            total=self.num_train_steps,
+            initial=step,
+            desc='Training',
+            dynamic_ncols=True,
+            disable=not self.is_main,
+        )
+
         while step < self.num_train_steps:
 
             # zero grads
@@ -728,7 +738,10 @@ class QLearner(Module):
 
                     self.accelerator.backward(loss / self.grad_accum_every)
 
-            self.print(f'td loss: {td_loss.item():.3f}')
+            pbar.set_postfix(
+                td_loss=f'{td_loss.item():.4f}',
+                cons_loss=f'{conservative_reg_loss.item():.4f}',
+            )
 
             # clip gradients (transformer best practices)
 
@@ -748,6 +761,7 @@ class QLearner(Module):
 
             step += 1
             self.step.add_(1)
+            pbar.update(1)
 
             # whether to checkpoint or not
 
@@ -759,4 +773,5 @@ class QLearner(Module):
 
             self.wait()
 
+        pbar.close()
         self.print('training complete')
