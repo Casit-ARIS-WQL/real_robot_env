@@ -339,6 +339,7 @@ class QLearner(Module):
         # normalize reward so that Q targets remain in [0, 1] range
 
         q_target = (reward / self.reward_scale) + not_terminal * (γ * q_next_value)
+        q_target.clamp_(0., 1.)
 
         # now just force the online model to be able to predict this target
 
@@ -427,6 +428,7 @@ class QLearner(Module):
         # account for discounting using the discount matrix
 
         q_target = einsum('b t, q t -> b q', not_terminal * rewards, γ)
+        q_target.clamp_(0., 1.)
 
         # have transformer learn to predict above Q target
 
@@ -582,6 +584,7 @@ class QLearner(Module):
         # only receive the immediate reward (no discounted future Q).
 
         q_target_last_action_value = (rewards / self.reward_scale) + not_terminal * γ * q_target_last_action_value
+        q_target_last_action_value.clamp_(0., 1.)
 
         # loss
 
