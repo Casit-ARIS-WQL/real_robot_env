@@ -822,20 +822,24 @@ class QTransformerEpisodeDataset(Dataset):
         ep_length: int,
         t: int,
     ) -> np.ndarray:
-        """从图像序列中提取以 t 为起点的 num_frames 帧，返回 (3, F, H, W) float32 in [0,1]。
+        """从图像序列中提取以 t 为终点的 num_frames 帧历史窗口，返回 (3, F, H, W) float32 in [0,1]。
+
+        窗口对应公式中的 s_{t-w:t}，即包含 t 在内向过去延伸 F 帧的状态历史。
+        f=0 为最旧帧（max(0, t-F+1)），f=F-1 为当前帧 t。
 
         Parameters
         ----------
         images    : (T, H, W, 3) uint8  某一视角的图像序列
         ep_length : episode 帧数 T
-        t         : 起始帧索引
+        t         : 当前帧索引（窗口终点）
         """
         F  = self.num_frames
         sz = self.image_size
         out = np.zeros((3, F, sz, sz), dtype=np.float32)
 
         for f in range(F):
-            ti = min(t + f, ep_length - 1)
+            # f=0 → 最旧帧 t-(F-1)，f=F-1 → 当前帧 t；不足时用第一帧填充
+            ti = max(t - (F - 1 - f), 0)
             img = images[ti]                                         # (H, W, 3) uint8
             if img.shape[0] != sz or img.shape[1] != sz:
                 img = _resize_image(img, sz)
