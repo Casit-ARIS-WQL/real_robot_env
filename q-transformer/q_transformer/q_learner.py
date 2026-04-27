@@ -336,7 +336,9 @@ class QLearner(Module):
             q_next_value = q_next.sigmoid()
 
         # Bellman's equation. most important line of code, hopefully done correctly
-        # normalize reward so that Q targets remain in [0, 1] range
+        # normalize reward so that Q targets remain in [0, 1] range, and clamp to
+        # enforce the constraint strictly (sigmoid output is bounded to [0, 1], so
+        # targets outside this range would cause gradient explosion and NaN loss)
 
         q_target = (reward / self.reward_scale) + not_terminal * (γ * q_next_value)
         q_target.clamp_(0., 1.)
@@ -428,6 +430,7 @@ class QLearner(Module):
         # account for discounting using the discount matrix
 
         q_target = einsum('b t, q t -> b q', not_terminal * rewards, γ)
+        # clamp to [0, 1] so targets match the sigmoid output range and prevent NaN
         q_target.clamp_(0., 1.)
 
         # have transformer learn to predict above Q target
