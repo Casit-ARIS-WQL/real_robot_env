@@ -558,11 +558,14 @@ class QLearner(Module):
         q_pred_rest_actions, q_pred_last_action      = q_pred[..., :-1], q_pred[..., -1]
         q_target_first_action, q_target_rest_actions = q_target[..., 0], q_target[..., 1:]
 
+        # eq. 1, Case 1: Q(s, a^{1:i-1}, a^i) ← max_{a^{i+1}} Q(s, a^{1:i}, a^{i+1})
+        # The formula specifies no additional transformation on either side; compare
+        # raw Q-value logits directly so the loss lives in the same space as the
+        # model output.
         if self.use_bce_loss:
-            q_target_rest_actions_values = self.hl_gauss_loss.transform_from_logits(q_target_rest_actions)
-            losses_all_actions_but_last = self.hl_gauss_loss(q_pred_rest_actions, q_target_rest_actions_values, reduction = 'none')
+            losses_all_actions_but_last = self.hl_gauss_loss(q_pred_rest_actions, q_target_rest_actions.detach(), reduction = 'none')
         else:
-            losses_all_actions_but_last = F.mse_loss(q_pred_rest_actions.sigmoid(), q_target_rest_actions.sigmoid(), reduction = 'none')
+            losses_all_actions_but_last = F.mse_loss(q_pred_rest_actions, q_target_rest_actions.detach(), reduction = 'none')
 
         # next take care of the very last action, which incorporates the rewards
 
@@ -575,8 +578,10 @@ class QLearner(Module):
 
         # Bellman's equation
         # normalize rewards so that Q targets remain in [0, 1] range
+        # not_terminal masks the bootstrapped Q term so that terminal states
+        # only receive the immediate reward (no discounted future Q).
 
-        q_target_last_action_value = (rewards / self.reward_scale) + γ * q_target_last_action_value
+        q_target_last_action_value = (rewards / self.reward_scale) + not_terminal * γ * q_target_last_action_value
 
         # loss
 
